@@ -183,7 +183,6 @@ Per-contract storage migration notes:
 
 ## References
 
-- [Account Upgrade Migration Path](account-upgrade-migration.md) — Storage migration procedures for account upgrades
 - [Upgrade Auth Requirements](upgrade-auth-requirements.md) — Authorization requirements for upgrade operations
 - [Rollback Deploy Notes](rollback-deploy.md) — Rollback strategies and procedures
 - [Rollback Log Discipline](../ops/rollback-log.md) — Operational logging discipline
