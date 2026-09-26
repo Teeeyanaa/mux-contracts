@@ -199,6 +199,7 @@ All three sign-offs are required before the deployment window begins.
 - [Funded deployer key setup](funded-deployer-key.md)
 - [Deploy dry-run flag](../scripts/deploy.sh) — `--dry-run` usage
 - [WASM hash verification](../scripts/verify-wasm-hash.sh) — post-deploy hash check
+- [Upgrade verification](../scripts/verify-upgrade.sh) — Pre-upgrade authorization checks
 - [Audit prep](audit-prep.md) — pre-audit requirements
 - [Access Control Checklist](access-control-checklist.md)
 - [Architecture Overview](architecture-overview.md)
