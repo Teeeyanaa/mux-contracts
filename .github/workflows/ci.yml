@@ -26,6 +26,26 @@ jobs:
           PR_LABELS: ${{ join(github.event.pull_request.labels.*.name, ',') }}
         run: |
           set -euo pipefail
+          bash scripts/test-check-mainnet-address-review.sh
+          bash scripts/check-mainnet-address-review.sh
+
+      - name: Verify network configuration and mainnet safety
+        run: |
+          bash scripts/test-network-config.sh
+          bash scripts/network-config.sh mainnet
+
+      - name: Verify mainnet deploy checklist script
+        run: |
+          bash scripts/test-check-mainnet-deploy-checklist.sh
+
+      - name: Operationalize deployer key security checks
+        run: |
+          bash scripts/check-gitignore-secret-patterns.sh
+          bash scripts/test-check-deploy-secret-name.sh
+          bash scripts/check-deploy-secret-name.sh
+          bash scripts/test-check-deployer-key-rotation-log.sh
+          bash scripts/check-deployer-key-rotation-log.sh
+          bash scripts/scan-git-secrets.sh --depth 100
 
       - name: Validate deploy env examples are secret-free
         run: bash scripts/validate-deploy-env.sh
@@ -303,4 +323,32 @@ jobs:
             --root-doc CONTRACT_IDS.md \
             --detail-doc docs/contract-ids.md
           bash scripts/check-dependency-graph.sh
- main
+
+      - name: Assert all expected contracts are generated in bindings
+        # Fail-closed: every contract listed in generate-bindings.sh must have
+        # a corresponding directory in bindings/src/generated/ so that silent
+        # WASM skipping in the generate step is caught before publish.
+        run: |
+          set -euo pipefail
+          EXPECTED_CONTRACTS=(
+            "mux-account"
+            "mux-account-factory"
+            "mux-batcher"
+            "mux-permissions"
+            "mux-policy"
+            "mux-registry"
+          )
+          GENERATED_DIR="bindings/src/generated"
+          failed=0
+          for contract in "${EXPECTED_CONTRACTS[@]}"; do
+            if [ ! -d "${GENERATED_DIR}/${contract}" ]; then
+              echo "::error::Expected generated contracts directory not found: ${GENERATED_DIR}/${contract}"
+              failed=1
+            fi
+          done
+          if [ "$failed" -ne 0 ]; then
+            echo "One or more expected generated-contracts directories are missing."
+            echo "Run: bash scripts/generate-bindings.sh"
+            exit 1
+          fi
+          echo "All expected generated contracts directories are present."

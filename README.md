@@ -290,7 +290,7 @@ async function handleContractCall(req, res) {
 docker compose up -d
 ```
 
- feat/771-upgrade-auth-requirements
+ feat/770-rollback-deploy-ops-log
 Supported options:
 - `--network <network>` — `localnet|testnet|mainnet` (default: `localnet`)
 - `--contract-id <id>` or `--contract-name <name>` — contract to call
@@ -331,15 +331,13 @@ stellar contract deploy --wasm target/wasm32-unknown-unknown/release/mux_account
 - [Access Control Review Checklist](docs/access-control-checklist.md) — pre-deployment and pre-audit checklist
 - [Storage Griefing Notes](docs/storage-griefing.md) — collection caps, TTL management, keeper runbook
 - [External Audit Prep](docs/audit-prep.md) — scope, entry points, known limitations, auditor checklist
-- [Contract Upgrade Pattern](docs/contract-upgrade-pattern.md) — Technical upgrade implementation
-- [Upgrade Auth Requirements](docs/upgrade-auth-requirements.md) — Authorization requirements for upgrade operations
 - [Rollback Deploy Notes](docs/rollback-deploy.md) — Rollback strategies and operational procedures
 - [Security Policy](SECURITY.md) — Overall security guidelines, rollback security, and incident response
 
 This exposes:
 - Soroban RPC on `http://localhost:8000`
 - Horizon on `http://localhost:8001`
-main
+ main
 
 Stop the stack with `docker compose down`.
 
