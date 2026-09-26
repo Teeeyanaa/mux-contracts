@@ -7,6 +7,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+### ⚠️ BREAKING CHANGES
+- BREAKING CHANGE: ABI changes now require the [ABI breaking-change checklist](docs/abi-breaking-change-checklist.md), explicit migration/rollback notes, generated binding review, and `BREAKING_CHANGE_ACK=1` before release or deployment.
+
 ### Fixed
 - Aligned vulnerability disclosure SLA in `SECURITY.md` and `.well-known/security.txt`, adding explicit response timeline targets, severity classification matrix, and correcting the RFC 9116 Policy URI to `SECURITY.md` (#861)
 - The delegate expiry field was spelled `expiry_ledger` in the shared JSON test vectors and `expiryLedger` in the TypeScript bindings, while the contract takes `expires_at: u64` — a Unix timestamp, not a ledger sequence. `MuxAccountClient.setDelegate` also encoded it as a `u32`. Renamed to `expires_at` / `expiresAt: bigint` and corrected the encoding to `u64`, with `tests/expiry_naming.rs` guarding every surface (#586)

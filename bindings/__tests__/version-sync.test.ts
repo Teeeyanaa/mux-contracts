@@ -8,10 +8,12 @@
 import * as fs from "fs";
 import * as path from "path";
 import { execSync } from "child_process";
+import { describe, expect, it } from "vitest";
 
 const REPO_ROOT = path.resolve(__dirname, "../..");
 const CARGO_TOML_PATH = path.join(REPO_ROOT, "Cargo.toml");
 const PKG_JSON_PATH = path.join(REPO_ROOT, "bindings", "package.json");
+const PKG_LOCK_PATH = path.join(REPO_ROOT, "bindings", "package-lock.json");
 const SYNC_SCRIPT = path.join(REPO_ROOT, "scripts", "sync-versions.sh");
 
 function readCargoWorkspaceVersion(): string {
@@ -28,11 +30,20 @@ function readBindingsVersion(): string {
   return pkg.version as string;
 }
 
+function readBindingsLockVersion(): string {
+  const lock = JSON.parse(fs.readFileSync(PKG_LOCK_PATH, "utf8"));
+  return lock.packages[""]["version"] as string;
+}
+
 describe("TypeScript bindings version sync (#125)", () => {
   it("bindings/package.json version matches Cargo workspace version", () => {
     const cargoVersion = readCargoWorkspaceVersion();
     const bindingsVersion = readBindingsVersion();
     expect(bindingsVersion).toBe(cargoVersion);
+  });
+
+  it("bindings/package-lock.json root version matches Cargo workspace version", () => {
+    expect(readBindingsLockVersion()).toBe(readCargoWorkspaceVersion());
   });
 
   it("Cargo workspace version is a valid semver string", () => {
