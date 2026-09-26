@@ -26,6 +26,38 @@ See [`docs/aa_sequence_diagram.md`](docs/aa_sequence_diagram.md) for the authori
 | [`contracts/mux-spending-policy`](contracts/mux-spending-policy/) | Per-account/per-asset spend-limit policy and validation |
 | [`contracts/mux-wallet-registry`](contracts/mux-wallet-registry/) | Named wallet address registry — register and look up wallet addresses by symbolic name |
 
+## Registry vs Wallet-Registry Split
+
+Mux ships **two distinct registries**. They are not interchangeable and must not be conflated — each has a different trust model, ownership, and set of invariants. See [`docs/registry-contracts-comparison.md`](docs/registry-contracts-comparison.md) for the full comparison.
+
+| | `mux-registry` | `mux-wallet-registry` |
+|---|---|---|
+| **Purpose** | Contract version/metadata registry | Named wallet address registry |
+| **Keyed by** | Deployed crate name | Symbolic wallet name |
+| **Value** | Version + metadata | Wallet address |
+| **Ownership** | Registry admin (owner) | Per-owner namespace |
+| **Authz** | Owner/admin only for writes | Owner (or authorized delegate) for writes; reads are public |
+| **Money path** | No — informational only | No — address lookup only; never authorizes spends |
+| **Source of truth** | Contract metadata | Wallet address mapping |
+
+### Invariants
+
+- **`mux-registry`** is the single source of truth for *which contract version is deployed under a given crate name*. Writes are restricted to the registry owner/admin; clients cannot self-register versions. Reads are public and side-effect free.
+- **`mux-wallet-registry`** maps a symbolic name to a wallet address **within an owner's namespace**. Writes require the owner (or an explicitly authorized delegate); a name cannot be silently reassigned by a non-owner. Reads are public.
+- **Neither registry authorizes spends, recovery, or admin actions.** Spend authorization lives in `mux-spending-policy` / `mux-account`; recovery lives in `mux-recovery`. A registry entry is a lookup, never a capability.
+- **Fail-closed:** unknown names/crates return a not-found error rather than a default address or version. Callers must treat a missing entry as a hard failure, not a fallback.
+
+### Authz boundaries
+
+| Surface | Owner | Delegate | Guardian | API-key / JWT |
+|---|---|---|---|---|
+| `mux-registry` write | ✅ | ❌ | ❌ | ❌ |
+| `mux-registry` read | ✅ | ✅ | ✅ | ✅ |
+| `mux-wallet-registry` write | ✅ | ✅ (if granted) | ❌ | ❌ |
+| `mux-wallet-registry` read | ✅ | ✅ | ✅ | ✅ |
+
+Clients cannot bypass policy: privileged writes are deny-by-default and require the owner (or an explicitly granted delegate for the wallet registry). API-key/JWT callers are read-only against both registries.
+
 ## WASM Size Budget & CI Artifacts
 
 The CI pipeline ([`.github/workflows/ci.yml`](.github/workflows/ci.yml)) builds every contract to `wasm32-unknown-unknown` and enforces a **fail-closed WASM size budget**: if any compiled contract exceeds the configured limit, the build fails and the PR cannot merge.
@@ -62,6 +94,9 @@ The CI pipeline ([`.github/workflows/bindings.yml`](.github/workflows/bindings.y
 
 See [`examples/bindings-usage.ts`](examples/bindings-usage.ts) for a working end-to-end example showing `check_spend` and `register_wallet`.
 See [`examples/wallet-registry-invoke.ts`](examples/wallet-registry-invoke.ts) for a dedicated wallet registry invoke script.
+See [`examples/authorize-flow.ts`](examples/authorize-flow.ts) for the owner → scoped session key → optional relayer → revocation authorization flow. The flow requires explicit environment variables and verifies that a revoked key is rejected.
+
+The runtime call relationships between contracts are documented in [`docs/dependency_graph.md`](docs/dependency_graph.md); the address key set is maintained in [`CONTRACT_IDS.md`](CONTRACT_IDS.md) and [`config/addresses.json`](config/addresses.json).
 
 ```ts
 import {
@@ -245,4 +280,71 @@ async function handleContractCall(req, res) {
 - **400 Bad Request** — Invalid input, validation failures, constraint violations
 - **409 Conflict** — `AlreadyInitial
 
-/* … truncated 1207 chars — edit only what you need near the top … */
+## Local Soroban Development
+
+### Using Docker Compose
+
+[`docker-compose.yml`](docker-compose.yml) starts the official `stellar/quickstart` image with Soroban RPC and Horizon for local development.
+
+```bash
+docker compose up -d
+```
+
+ feat/770-rollback-deploy-ops-log
+Supported options:
+- `--network <network>` — `localnet|testnet|mainnet` (default: `localnet`)
+- `--contract-id <id>` or `--contract-name <name>` — contract to call
+- `--function <name>` — contract function to invoke
+- `--secret-key <secret>` — signer secret key for the transaction
+- `--arg <value>` — argument values; repeatable
+- `--simulate-only` — simulate without submitting
+
+If dependencies are not installed, run:
+
+```bash
+cd bindings && npm ci
+```
+
+**Deploying Contracts to Localnet:**
+
+After starting the localnet, build and deploy contracts:
+```bash
+# Build contracts
+cargo build --target wasm32-unknown-unknown --release --workspace
+
+# Use Stellar CLI to deploy (requires `stellar` CLI installed)
+stellar contract deploy --wasm target/wasm32-unknown-unknown/release/mux_account.wasm
+# ... repeat for other contracts and save the contract IDs to .env.localnet
+```
+
+## Documentation
+
+- [Contract IDs](CONTRACT_IDS.md) — Per-network program addresses, update process, and upgrade authority
+
+## Documentation (Extended)
+
+- [Architecture Overview](docs/architecture-overview.md) — High-level diagram and system components
+- [Policy Semantics](docs/policy-semantics.md) — Per-wallet daily spend limit design, reset logic, and error codes
+- [Account Abstraction Design](docs/account-abstraction.md) — Goals, architecture, session key design, and transaction flows
+- [Backend Orchestrator Integration](docs/aa-backend-orchestrator.md) — Scope and architecture for relayer integration
+- [Threat Model](docs/threat-model.md) — assets, trust boundaries, and mitigations
+- [Access Control Review Checklist](docs/access-control-checklist.md) — pre-deployment and pre-audit checklist
+- [Storage Griefing Notes](docs/storage-griefing.md) — collection caps, TTL management, keeper runbook
+- [External Audit Prep](docs/audit-prep.md) — scope, entry points, known limitations, auditor checklist
+- [Rollback Deploy Notes](docs/rollback-deploy.md) — Rollback strategies and operational procedures
+- [Security Policy](SECURITY.md) — Overall security guidelines, rollback security, and incident response
+
+This exposes:
+- Soroban RPC on `http://localhost:8000`
+- Horizon on `http://localhost:8001`
+ main
+
+Stop the stack with `docker compose down`.
+
+## Security
+
+See [`SECURITY.md`](SECURITY.md) for the threat model, secret-handling rules, and the registry authz boundaries summarized above. The registry split (version/metadata vs named wallet addresses) is documented in [`docs/registry-contracts-comparison.md`](docs/registry-contracts-comparison.md); keep both in sync when either registry changes.
+
+## License
+
+Apache-2.0

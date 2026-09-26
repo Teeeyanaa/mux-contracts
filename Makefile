@@ -1,28 +1,45 @@
-.PHONY: all build test clean fmt lint clippy wasm check-sizes size-check \
-        coverage coverage-ci \
+.PHONY: all build test test-unit test-all clean fmt fmt-fix lint clippy wasm check-sizes size-check \
+        bindings generate-bindings \
+        coverage coverage-ci test-coverage \
         deny \
         check-no-testutils \
+        check-release-profile \
         verify-wasm-hashes \
-        deploy-dry-run deploy-ci
+        deploy-dry-run deploy-ci \
+        check-mainnet-checklist check-deployer-key scan-secrets
 
 all: fmt lint build test
 
 build:
 	cargo build --workspace --all-targets
 
+# Run the complete test suite with all features enabled (matches CONTRIBUTING.md)
 test:
-	cargo test --workspace
+	cargo test --workspace --all-features
+
+# Unit tests only (matches CONTRIBUTING.md)
+test-unit:
+	cargo test --lib
+
+# Alias for full workspace test suite
+test-all: test
 
 clean:
 	cargo clean
 
+# Check formatting without modifying files (matches CONTRIBUTING.md checklist)
 fmt:
 	cargo fmt --all -- --check
 
+# Apply formatting fixes across all workspace crates (matches CONTRIBUTING.md code style)
+fmt-fix:
+	cargo fmt --all
+
 lint: clippy
 
+# Run Clippy across all targets and features with warnings denied (matches CONTRIBUTING.md)
 clippy:
-	cargo clippy --workspace --all-targets -- -D warnings
+	cargo clippy --workspace --all-targets --all-features -- -D warnings
 
 wasm:
 	bash scripts/build-wasm.sh --release
@@ -33,10 +50,24 @@ check-sizes: wasm
 # Alias so both spellings work: `make check-size` and `make check-sizes`
 size-check: check-sizes
 
+# Generate TypeScript bindings from compiled contracts (matches CONTRIBUTING.md)
+bindings:
+	bash scripts/generate-bindings.sh
+
+generate-bindings: bindings
+
 # Supply-chain license and advisory check. deny.toml controls policy. (#661)
 # Requires: cargo install cargo-deny
 deny:
 	cargo deny check
+
+# Fail-closed check that [profile.release] matches
+# docs/release-profile-verification.md, plus artifact checks when WASMs exist. (#780)
+check-release-profile:
+	bash scripts/check-release-profile.sh
+	@if [ -d target/wasm32-unknown-unknown/release ]; then \
+		bash scripts/check-release-profile.sh --wasm-dir target/wasm32-unknown-unknown/release; \
+	fi
 
 # Ensure no mux-* Cargo.toml enables soroban-sdk testutils in [dependencies]
 # and that built WASMs (if present) contain no testutils bytes. (#663)
@@ -59,6 +90,10 @@ coverage:
 coverage-ci:
 	bash scripts/coverage.sh --lcov
 
+# Validate coverage report stub behavior (matches CONTRIBUTING.md)
+test-coverage:
+	bash scripts/test-coverage.sh
+
 # Simulate a full deployment without submitting any on-chain transactions.
 # No secret keys or live network access required. Useful for local validation. (#449)
 deploy-dry-run:
@@ -68,3 +103,18 @@ deploy-dry-run:
 # Intended for CI pipelines that cache build outputs between jobs. (#450)
 deploy-ci:
 	bash scripts/deploy.sh --skip-build
+
+# Validate automated checklist verification before mainnet deploy (#769)
+check-mainnet-checklist:
+	bash scripts/check-mainnet-deploy-checklist.sh --skip-git-clean
+
+# Run operational deployer key security validations (#768)
+check-deployer-key:
+	bash scripts/check-deployer-key-rotation-log.sh
+	bash scripts/check-deploy-secret-name.sh
+	bash scripts/check-gitignore-secret-patterns.sh
+
+# Scan git repository history for leaked secrets (#768)
+scan-secrets:
+	bash scripts/scan-git-secrets.sh
+
